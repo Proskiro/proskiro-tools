@@ -1,0 +1,21 @@
+[project]
+name = "proskiro_tools"
+version = "0.1.0"
+description = "Shared core package for Proskiro - models, database, and data access layer"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.6",
+  "pydantic-settings>=2.2",
+  "python-dotenv>=1.0",
+  "sqlalchemy>=2.0",
+  "psycopg2-binary>=2.9",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["proskiro_tools*"]
