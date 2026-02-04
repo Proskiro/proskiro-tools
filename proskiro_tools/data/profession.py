@@ -8,15 +8,19 @@ from proskiro_tools.models.profession import Books, Profession, Skills
 
 def rows_to_profession(
     rows,
-    max_knowledge: int | None = None,
-    max_skills: int | None = None,
+    max_essential_knowledge: int | None = None,
+    max_essential_skills: int | None = None,
+    max_optional_knowledge: int | None = None,
+    max_optional_skills: int | None = None,
 ) -> Profession:
     """Convert database rows to a Profession model with nested skills and books.
 
     Args:
         rows: Database result rows
-        max_knowledge: Maximum number of knowledge-type skills to include (None = no limit)
-        max_skills: Maximum number of skill/competence-type skills to include (None = no limit)
+        max_essential_knowledge: Max essential knowledge items (None = no limit)
+        max_essential_skills: Max essential skill/competence items (None = no limit)
+        max_optional_knowledge: Max optional knowledge items (None = no limit)
+        max_optional_skills: Max optional skill/competence items (None = no limit)
     """
     if not rows:
         raise ValueError("No rows to convert")
@@ -28,13 +32,27 @@ def rows_to_profession(
         isco_code=first.isco_code,
         preferred_title=first.preferred_title,
         description=first.description,
-        knowledge=[],
-        skills=[],
+        essential_skills=[],
+        optional_skills=[],
     )
 
-    knowledge_by_key: dict[str, Skills] = OrderedDict()
-    skills_by_key: dict[str, Skills] = OrderedDict()
+    essential_by_key: dict[str, Skills] = OrderedDict()
+    optional_by_key: dict[str, Skills] = OrderedDict()
     seen_books_by_skill: dict[str, set[str]] = {}
+
+    # Track counts by importance + type
+    counts = {
+        ("essential", "knowledge"): 0,
+        ("essential", "skill/competence"): 0,
+        ("optional", "knowledge"): 0,
+        ("optional", "skill/competence"): 0,
+    }
+    limits = {
+        ("essential", "knowledge"): max_essential_knowledge,
+        ("essential", "skill/competence"): max_essential_skills,
+        ("optional", "knowledge"): max_optional_knowledge,
+        ("optional", "skill/competence"): max_optional_skills,
+    }
 
     for r in rows:
         # ---- guard: skip rows without a skill ----
@@ -42,15 +60,24 @@ def rows_to_profession(
         if not skill_key:
             continue
 
-        is_knowledge = r.skill_type == "knowledge"
-        target_dict = knowledge_by_key if is_knowledge else skills_by_key
-        max_limit = max_knowledge if is_knowledge else max_skills
+        is_essential = r.importance == "essential"
+        target_dict = essential_by_key if is_essential else optional_by_key
+
+        # Determine limit key
+        importance = "essential" if is_essential else "optional"
+        skill_type = (
+            r.skill_type
+            if r.skill_type in ("knowledge", "skill/competence")
+            else "skill/competence"
+        )
+        limit_key = (importance, skill_type)
+        max_limit = limits.get(limit_key)
 
         # ---- check limit ----
         if (
             max_limit is not None
             and skill_key not in target_dict
-            and len(target_dict) >= max_limit
+            and counts[limit_key] >= max_limit
         ):
             continue
 
@@ -66,12 +93,17 @@ def rows_to_profession(
                 books=[],
             )
             seen_books_by_skill[skill_key] = set()
+            counts[limit_key] += 1
 
         skill_obj = target_dict[skill_key]
 
-        # ---- attach book if present (only for knowledge) ----
+        # ---- attach book if present (only for knowledge type) ----
         isbn_10 = r.isbn_10
-        if isbn_10 and isbn_10 not in seen_books_by_skill[skill_key] and is_knowledge:
+        if (
+            isbn_10
+            and isbn_10 not in seen_books_by_skill[skill_key]
+            and r.skill_type == "knowledge"
+        ):
             seen_books_by_skill[skill_key].add(isbn_10)
 
             skill_obj.books.append(
@@ -85,16 +117,18 @@ def rows_to_profession(
                 )
             )
 
-    profession.knowledge = list(knowledge_by_key.values())
-    profession.skills = list(skills_by_key.values())
+    profession.essential_skills = list(essential_by_key.values())
+    profession.optional_skills = list(optional_by_key.values())
     return profession
 
 
 def search_profession(
     db: Session,
     profession_name: str,
-    max_knowledge: int | None = None,
-    max_skills: int | None = None,
+    max_essential_knowledge: int | None = None,
+    max_essential_skills: int | None = None,
+    max_optional_knowledge: int | None = None,
+    max_optional_skills: int | None = None,
 ) -> Profession | None:
     """
     Search for a profession by name and return it with all associated skills and books.
@@ -102,8 +136,10 @@ def search_profession(
     Args:
         db: SQLAlchemy database session
         profession_name: Name or partial name of the profession to search for
-        max_knowledge: Maximum number of knowledge-type items to return (None = no limit)
-        max_skills: Maximum number of skill/competence items to return (None = no limit)
+        max_essential_knowledge: Max essential knowledge items (None = no limit)
+        max_essential_skills: Max essential skill/competence items (None = no limit)
+        max_optional_knowledge: Max optional knowledge items (None = no limit)
+        max_optional_skills: Max optional skill/competence items (None = no limit)
 
     Returns:
         Profession model with nested skills and books, or None if not found
@@ -159,4 +195,10 @@ def search_profession(
     if not rows:
         return None
 
-    return rows_to_profession(rows, max_knowledge=max_knowledge, max_skills=max_skills)
+    return rows_to_profession(
+        rows,
+        max_essential_knowledge=max_essential_knowledge,
+        max_essential_skills=max_essential_skills,
+        max_optional_knowledge=max_optional_knowledge,
+        max_optional_skills=max_optional_skills,
+    )

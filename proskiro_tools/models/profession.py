@@ -35,5 +35,5 @@ class Profession(BaseModel):
     isco_code: Optional[str] = None
     preferred_title: str
     description: Optional[str] = None
-    knowledge: list[Skills] = Field(default_factory=list)
-    skills: list[Skills] = Field(default_factory=list)
+    essential_skills: list[Skills] = Field(default_factory=list)
+    optional_skills: list[Skills] = Field(default_factory=list)
