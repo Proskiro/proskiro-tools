@@ -1,7 +1,5 @@
 from __future__ import annotations
-
 from typing import Optional
-
 from pydantic import BaseModel, Field
 
 
@@ -21,9 +19,9 @@ class Courses(BaseModel):
 
 class Skills(BaseModel):
     skill_uri: str
-    skill_code: Optional[str] = None
+    skill_code: str
     preferred_title: str
-    description: Optional[str] = None
+    description: str
     importance: str
     skill_type: str
     books: list[Books] = Field(default_factory=list)
@@ -35,5 +33,4 @@ class Profession(BaseModel):
     isco_code: Optional[str] = None
     preferred_title: str
     description: Optional[str] = None
-    knowledge: list[Skills] = Field(default_factory=list)
     skills: list[Skills] = Field(default_factory=list)

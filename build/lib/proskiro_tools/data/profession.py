@@ -6,18 +6,8 @@ from sqlalchemy.orm import Session
 from proskiro_tools.models.profession import Books, Profession, Skills
 
 
-def rows_to_profession(
-    rows,
-    max_knowledge: int | None = None,
-    max_skills: int | None = None,
-) -> Profession:
-    """Convert database rows to a Profession model with nested skills and books.
-
-    Args:
-        rows: Database result rows
-        max_knowledge: Maximum number of knowledge-type skills to include (None = no limit)
-        max_skills: Maximum number of skill/competence-type skills to include (None = no limit)
-    """
+def rows_to_profession(rows) -> Profession:
+    """Convert database rows to a Profession model with nested skills and books."""
     if not rows:
         raise ValueError("No rows to convert")
 
@@ -28,11 +18,9 @@ def rows_to_profession(
         isco_code=first.isco_code,
         preferred_title=first.preferred_title,
         description=first.description,
-        knowledge=[],
         skills=[],
     )
 
-    knowledge_by_key: dict[str, Skills] = OrderedDict()
     skills_by_key: dict[str, Skills] = OrderedDict()
     seen_books_by_skill: dict[str, set[str]] = {}
 
@@ -42,21 +30,9 @@ def rows_to_profession(
         if not skill_key:
             continue
 
-        is_knowledge = r.skill_type == "knowledge"
-        target_dict = knowledge_by_key if is_knowledge else skills_by_key
-        max_limit = max_knowledge if is_knowledge else max_skills
-
-        # ---- check limit ----
-        if (
-            max_limit is not None
-            and skill_key not in target_dict
-            and len(target_dict) >= max_limit
-        ):
-            continue
-
         # ---- create skill if first seen ----
-        if skill_key not in target_dict:
-            target_dict[skill_key] = Skills(
+        if skill_key not in skills_by_key:
+            skills_by_key[skill_key] = Skills(
                 skill_uri=r.skill_uri,
                 skill_code=r.skill_code,
                 preferred_title=r.skill_title,
@@ -67,11 +43,13 @@ def rows_to_profession(
             )
             seen_books_by_skill[skill_key] = set()
 
-        skill_obj = target_dict[skill_key]
+        skill_obj = skills_by_key[skill_key]
 
-        # ---- attach book if present (only for knowledge) ----
+        # ---- attach book if present ----
         isbn_10 = r.isbn_10
-        if isbn_10 and isbn_10 not in seen_books_by_skill[skill_key] and is_knowledge:
+        if (
+            isbn_10 and isbn_10 not in seen_books_by_skill[skill_key]
+        ) and r.skill_type == "knowledge":
             seen_books_by_skill[skill_key].add(isbn_10)
 
             skill_obj.books.append(
@@ -85,25 +63,17 @@ def rows_to_profession(
                 )
             )
 
-    profession.knowledge = list(knowledge_by_key.values())
     profession.skills = list(skills_by_key.values())
     return profession
 
 
-def search_profession(
-    db: Session,
-    profession_name: str,
-    max_knowledge: int | None = None,
-    max_skills: int | None = None,
-) -> Profession | None:
+def search_profession(db: Session, profession_name: str) -> Profession | None:
     """
     Search for a profession by name and return it with all associated skills and books.
 
     Args:
         db: SQLAlchemy database session
         profession_name: Name or partial name of the profession to search for
-        max_knowledge: Maximum number of knowledge-type items to return (None = no limit)
-        max_skills: Maximum number of skill/competence items to return (None = no limit)
 
     Returns:
         Profession model with nested skills and books, or None if not found
@@ -134,10 +104,11 @@ def search_profession(
 
         LEFT JOIN occupation_skills os
             ON o.uri = os.occupation_uri
-           AND o.status = 'released'
+           AND os.relation_type = 'essential' AND o.status = 'released'
 
         LEFT JOIN skills s
             ON os.skill_uri = s.uri
+           AND s.skill_type = 'knowledge'
 
         LEFT JOIN skill_book_matches sb
             ON s.uri = sb.skill_uri
@@ -159,4 +130,4 @@ def search_profession(
     if not rows:
         return None
 
-    return rows_to_profession(rows, max_knowledge=max_knowledge, max_skills=max_skills)
+    return rows_to_profession(rows)

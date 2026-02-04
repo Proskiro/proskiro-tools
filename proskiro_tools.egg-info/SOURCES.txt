@@ -1,0 +1,15 @@
+README.md
+pyproject.toml
+proskiro_tools/__init__.py
+proskiro_tools.egg-info/PKG-INFO
+proskiro_tools.egg-info/SOURCES.txt
+proskiro_tools.egg-info/dependency_links.txt
+proskiro_tools.egg-info/requires.txt
+proskiro_tools.egg-info/top_level.txt
+proskiro_tools/data/__init__.py
+proskiro_tools/data/profession.py
+proskiro_tools/db/__init__.py
+proskiro_tools/db/connection.py
+proskiro_tools/models/__init__.py
+proskiro_tools/models/profession.py
+proskiro_tools/models/skills.py
