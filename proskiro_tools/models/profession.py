@@ -38,3 +38,13 @@ class Profession(BaseModel):
     description: Optional[str] = None
     essential_skills: list[Skills] = Field(default_factory=list)
     optional_skills: list[Skills] = Field(default_factory=list)
+    is_featured: Optional[bool] = None
+
+
+class ProfessionSummary(BaseModel):
+    """Lightweight profession model for listing/search results."""
+
+    uri: Optional[str] = None
+    isco_code: Optional[str] = None
+    preferred_title: str
+    description: Optional[str] = None

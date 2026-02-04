@@ -3,7 +3,63 @@ from collections import OrderedDict
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from proskiro_tools.models.profession import Books, Profession, Skills
+from proskiro_tools.models.profession import (
+    Books,
+    Profession,
+    ProfessionSummary,
+    Skills,
+)
+
+
+def list_featured_professions(
+    db: Session,
+    query: str = "",
+    limit: int = 20,
+) -> list[ProfessionSummary]:
+    """
+    List featured professions matching a search query.
+
+    Args:
+        db: SQLAlchemy database session
+        query: Search term to match against profession titles (empty = all featured)
+        limit: Maximum number of results to return
+
+    Returns:
+        List of ProfessionSummary objects (basic info only, no skills/books)
+    """
+    sql = text("""
+        SELECT
+            o.uri,
+            o.isco_code,
+            o.preferred_title,
+            o.description
+        FROM occupations o
+        WHERE
+            o.is_featured = TRUE
+            AND o.status = 'released'
+            AND (o.is_leaf OR o.is_functional_leaf)
+            AND (
+                :q = ''
+                OR o.preferred_title ILIKE :q_pattern
+                OR o.alt_label ILIKE :q_pattern
+            )
+        ORDER BY o.preferred_title
+        LIMIT :limit;
+    """)
+
+    rows = db.execute(
+        sql, {"q": query, "q_pattern": f"%{query}%", "limit": limit}
+    ).fetchall()
+
+    return [
+        ProfessionSummary(
+            uri=row.uri,
+            isco_code=row.isco_code,
+            preferred_title=row.preferred_title,
+            description=row.description,
+        )
+        for row in rows
+    ]
 
 
 def rows_to_profession(
@@ -34,6 +90,7 @@ def rows_to_profession(
         description=first.description,
         essential_skills=[],
         optional_skills=[],
+        is_featured=first.is_featured,
     )
 
     essential_by_key: dict[str, Skills] = OrderedDict()
@@ -161,6 +218,7 @@ def search_profession(
             o.status                AS status,
             o.is_leaf               AS is_leaf,
             o.is_functional_leaf    AS is_functional_leaf,
+            o.is_featured           AS is_featured,
 
             s.uri                   AS skill_uri,
             s.skill_code            AS skill_code,
@@ -183,6 +241,7 @@ def search_profession(
         LEFT JOIN occupation_skills os
             ON o.uri = os.occupation_uri
            AND o.status = 'released'
+            AND o.is_featured = TRUE
 
         LEFT JOIN skills s
             ON os.skill_uri = s.uri

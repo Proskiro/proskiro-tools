@@ -7,15 +7,23 @@ This package provides:
 - data: Data access layer (queries and transformations)
 """
 
-from proskiro_tools.data import search_profession
+from proskiro_tools.data import list_featured_professions, search_profession
 from proskiro_tools.db import SessionLocal, get_db
-from proskiro_tools.models import Books, Courses, Profession, Skill, Skills
+from proskiro_tools.models import (
+    Books,
+    Courses,
+    Profession,
+    ProfessionSummary,
+    Skill,
+    Skills,
+)
 
 __version__ = "0.1.0"
 
 __all__ = [
     # Models
     "Profession",
+    "ProfessionSummary",
     "Skills",
     "Books",
     "Courses",
@@ -24,5 +32,6 @@ __all__ = [
     "get_db",
     "SessionLocal",
     # Data access
+    "list_featured_professions",
     "search_profession",
 ]

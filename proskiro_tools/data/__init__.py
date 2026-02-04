@@ -1,6 +1,11 @@
-from proskiro_tools.data.profession import search_profession, rows_to_profession
+from proskiro_tools.data.profession import (
+    list_featured_professions,
+    rows_to_profession,
+    search_profession,
+)
 
 __all__ = [
-    "search_profession",
+    "list_featured_professions",
     "rows_to_profession",
+    "search_profession",
 ]

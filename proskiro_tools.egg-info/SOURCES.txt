@@ -13,3 +13,4 @@ proskiro_tools/db/connection.py
 proskiro_tools/models/__init__.py
 proskiro_tools/models/profession.py
 proskiro_tools/models/skills.py
+tests/test_profession.py
