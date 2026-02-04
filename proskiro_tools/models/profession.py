@@ -26,6 +26,7 @@ class Skills(BaseModel):
     description: Optional[str] = None
     importance: str
     skill_type: str
+    book_count: int = 0  # Total books matched to this skill
     books: list[Books] = Field(default_factory=list)
     courses: list[Courses] = Field(default_factory=list)
 

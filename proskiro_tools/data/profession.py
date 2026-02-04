@@ -90,6 +90,7 @@ def rows_to_profession(
                 importance=r.importance,
                 skill_type=r.skill_type,
                 description=r.skill_description,
+                book_count=r.skill_book_count or 0,
                 books=[],
             )
             seen_books_by_skill[skill_key] = set()
@@ -145,12 +146,21 @@ def search_profession(
         Profession model with nested skills and books, or None if not found
     """
     sql = text("""
+        WITH skill_book_counts AS (
+            SELECT 
+                skill_uri,
+                COUNT(DISTINCT book_id) as book_count
+            FROM skill_book_matches
+            GROUP BY skill_uri
+        )
         SELECT
             o.uri                   AS uri,
             o.isco_code             AS isco_code,
             o.preferred_title       AS preferred_title,
             o.description           AS description,
             o.status                AS status,
+            o.is_leaf               AS is_leaf,
+            o.is_functional_leaf    AS is_functional_leaf,
 
             s.uri                   AS skill_uri,
             s.skill_code            AS skill_code,
@@ -164,7 +174,9 @@ def search_profession(
             b.title                 AS book_title,
             b.authors               AS book_authors,
             b.published_year        AS book_published_year,
-            sb.rank                 AS book_rank
+            sb.rank                 AS book_rank,
+            
+            COALESCE(sbc.book_count, 0) AS skill_book_count
 
         FROM occupations o
 
@@ -175,6 +187,9 @@ def search_profession(
         LEFT JOIN skills s
             ON os.skill_uri = s.uri
 
+        LEFT JOIN skill_book_counts sbc
+            ON s.uri = sbc.skill_uri
+
         LEFT JOIN skill_book_matches sb
             ON s.uri = sb.skill_uri
 
@@ -183,8 +198,11 @@ def search_profession(
 
         WHERE
             (o.preferred_title ILIKE :q OR o.alt_label ILIKE :q)
+            AND (o.is_leaf OR o.is_functional_leaf)
 
         ORDER BY
+            os.relation_type DESC,      -- essential before optional
+            sbc.book_count DESC NULLS LAST,  -- most books first
             s.preferred_title,
             sb.rank
 
