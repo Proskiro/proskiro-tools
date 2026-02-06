@@ -32,7 +32,8 @@ def list_featured_professions(
             o.uri,
             o.isco_code,
             o.preferred_title,
-            o.description
+            o.description,
+            o.slug
         FROM occupations o
         WHERE
             o.is_featured = TRUE
@@ -57,6 +58,7 @@ def list_featured_professions(
             isco_code=row.isco_code,
             preferred_title=row.preferred_title,
             description=row.description,
+            slug=row.slug,
         )
         for row in rows
     ]
@@ -88,6 +90,7 @@ def rows_to_profession(
         isco_code=first.isco_code,
         preferred_title=first.preferred_title,
         description=first.description,
+        slug=first.slug,
         essential_skills=[],
         optional_skills=[],
         is_featured=first.is_featured,
@@ -215,6 +218,7 @@ def search_profession(
             o.isco_code             AS isco_code,
             o.preferred_title       AS preferred_title,
             o.description           AS description,
+            o.slug                  AS slug,
             o.status                AS status,
             o.is_leaf               AS is_leaf,
             o.is_functional_leaf    AS is_functional_leaf,
@@ -240,8 +244,6 @@ def search_profession(
 
         LEFT JOIN occupation_skills os
             ON o.uri = os.occupation_uri
-           AND o.status = 'released'
-            AND o.is_featured = TRUE
 
         LEFT JOIN skills s
             ON os.skill_uri = s.uri
@@ -258,6 +260,8 @@ def search_profession(
         WHERE
             (o.preferred_title ILIKE :q OR o.alt_label ILIKE :q)
             AND (o.is_leaf OR o.is_functional_leaf)
+            --AND o.status = 'released'
+            AND o.is_featured = TRUE
 
         ORDER BY
             os.relation_type DESC,      -- essential before optional
@@ -269,6 +273,107 @@ def search_profession(
     """)
 
     rows = db.execute(sql, {"q": f"%{profession_name}%"}).fetchall()
+    if not rows:
+        return None
+
+    return rows_to_profession(
+        rows,
+        max_essential_knowledge=max_essential_knowledge,
+        max_essential_skills=max_essential_skills,
+        max_optional_knowledge=max_optional_knowledge,
+        max_optional_skills=max_optional_skills,
+    )
+
+
+def get_profession_by_slug(
+    db: Session,
+    slug: str,
+    max_essential_knowledge: int | None = None,
+    max_essential_skills: int | None = None,
+    max_optional_knowledge: int | None = None,
+    max_optional_skills: int | None = None,
+) -> Profession | None:
+    """
+    Fetch a profession by its slug (stored in database).
+
+    Args:
+        db: SQLAlchemy database session
+        slug: URL slug stored in occupations.slug column
+        max_essential_knowledge: Max essential knowledge items (None = no limit)
+        max_essential_skills: Max essential skill/competence items (None = no limit)
+        max_optional_knowledge: Max optional knowledge items (None = no limit)
+        max_optional_skills: Max optional skill/competence items (None = no limit)
+
+    Returns:
+        Profession model with nested skills and books, or None if not found
+    """
+    sql = text("""
+        WITH skill_book_counts AS (
+            SELECT 
+                skill_uri,
+                COUNT(DISTINCT book_id) as book_count
+            FROM skill_book_matches
+            GROUP BY skill_uri
+        )
+        SELECT
+            o.uri                   AS uri,
+            o.isco_code             AS isco_code,
+            o.preferred_title       AS preferred_title,
+            o.description           AS description,
+            o.slug                  AS slug,
+            o.status                AS status,
+            o.is_leaf               AS is_leaf,
+            o.is_functional_leaf    AS is_functional_leaf,
+            o.is_featured           AS is_featured,
+
+            s.uri                   AS skill_uri,
+            s.skill_code            AS skill_code,
+            s.preferred_title       AS skill_title,
+            os.relation_type        AS importance,
+            s.skill_type            AS skill_type,
+            s.description           AS skill_description,
+
+            b.id                    AS book_id,
+            b.isbn_10               AS isbn_10,
+            b.title                 AS book_title,
+            b.authors               AS book_authors,
+            b.published_year        AS book_published_year,
+            sb.rank                 AS book_rank,
+            
+            COALESCE(sbc.book_count, 0) AS skill_book_count
+
+        FROM occupations o
+
+        LEFT JOIN occupation_skills os
+            ON o.uri = os.occupation_uri
+
+        LEFT JOIN skills s
+            ON os.skill_uri = s.uri
+
+        LEFT JOIN skill_book_counts sbc
+            ON s.uri = sbc.skill_uri
+
+        LEFT JOIN skill_book_matches sb
+            ON s.uri = sb.skill_uri
+
+        LEFT JOIN books b
+            ON sb.book_id = b.id
+
+        WHERE
+            o.slug = :slug
+            AND (o.is_leaf OR o.is_functional_leaf)
+            AND o.is_featured = TRUE
+
+        ORDER BY
+            os.relation_type DESC,
+            sbc.book_count DESC NULLS LAST,
+            s.preferred_title,
+            sb.rank
+
+        LIMIT 500;
+    """)
+
+    rows = db.execute(sql, {"slug": slug}).fetchall()
     if not rows:
         return None
 

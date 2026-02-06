@@ -36,6 +36,7 @@ class Profession(BaseModel):
     isco_code: Optional[str] = None
     preferred_title: str
     description: Optional[str] = None
+    slug: str
     essential_skills: list[Skills] = Field(default_factory=list)
     optional_skills: list[Skills] = Field(default_factory=list)
     is_featured: Optional[bool] = None
@@ -48,3 +49,4 @@ class ProfessionSummary(BaseModel):
     isco_code: Optional[str] = None
     preferred_title: str
     description: Optional[str] = None
+    slug: str
