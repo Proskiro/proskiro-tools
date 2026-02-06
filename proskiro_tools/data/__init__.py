@@ -1,5 +1,6 @@
 from proskiro_tools.data.profession import (
     get_profession_by_slug,
+    list_diverse_featured_professions,
     list_featured_professions,
     rows_to_profession,
     search_profession,
@@ -7,6 +8,7 @@ from proskiro_tools.data.profession import (
 
 __all__ = [
     "get_profession_by_slug",
+    "list_diverse_featured_professions",
     "list_featured_professions",
     "rows_to_profession",
     "search_profession",

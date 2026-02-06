@@ -37,7 +37,7 @@ def list_featured_professions(
         FROM occupations o
         WHERE
             o.is_featured = TRUE
-            AND o.status = 'released'
+            AND o.status <> 'obsolete'
             AND (o.is_leaf OR o.is_functional_leaf)
             AND (
                 :q = ''
@@ -51,6 +51,71 @@ def list_featured_professions(
     rows = db.execute(
         sql, {"q": query, "q_pattern": f"%{query}%", "limit": limit}
     ).fetchall()
+
+    return [
+        ProfessionSummary(
+            uri=row.uri,
+            isco_code=row.isco_code,
+            preferred_title=row.preferred_title,
+            description=row.description,
+            slug=row.slug,
+        )
+        for row in rows
+    ]
+
+
+def list_diverse_featured_professions(
+    db: Session,
+    limit: int = 6,
+) -> list[ProfessionSummary]:
+    """
+    List featured professions with one random profession per ISCO major group,
+    filling from larger groups if not enough unique groups exist.
+
+    Args:
+        db: SQLAlchemy database session
+        limit: Maximum number of results (default 6)
+
+    Returns:
+        List of ProfessionSummary objects from different ISCO groups
+    """
+    sql = text("""
+        WITH ranked AS (
+            SELECT
+                o.uri,
+                o.isco_code,
+                o.preferred_title,
+                o.description,
+                o.slug,
+                SUBSTRING(o.isco_code FROM 2 FOR 1) AS isco_group,
+                ROW_NUMBER() OVER (
+                    PARTITION BY SUBSTRING(o.isco_code FROM 2 FOR 1)
+                    ORDER BY RANDOM()
+                ) AS rn
+            FROM occupations o
+            WHERE
+                o.is_featured = TRUE
+                AND (o.is_leaf OR o.is_functional_leaf)
+                AND o.isco_code IS NOT NULL
+        ),
+        one_per_group AS (
+            SELECT uri, isco_code, preferred_title, description, slug, isco_group
+            FROM ranked
+            WHERE rn = 1
+        ),
+        extras AS (
+            SELECT uri, isco_code, preferred_title, description, slug, isco_group
+            FROM ranked
+            WHERE rn = 2
+            ORDER BY RANDOM()
+        )
+        SELECT uri, isco_code, preferred_title, description, slug FROM one_per_group
+        UNION ALL
+        SELECT uri, isco_code, preferred_title, description, slug FROM extras
+        LIMIT :limit;
+    """)
+
+    rows = db.execute(sql, {"limit": limit}).fetchall()
 
     return [
         ProfessionSummary(
@@ -260,7 +325,7 @@ def search_profession(
         WHERE
             (o.preferred_title ILIKE :q OR o.alt_label ILIKE :q)
             AND (o.is_leaf OR o.is_functional_leaf)
-            --AND o.status = 'released'
+            AND o.status <> 'obsolete'
             AND o.is_featured = TRUE
 
         ORDER BY
