@@ -10,14 +10,14 @@ ISCO_GROUPS = {
     "0": {
         "label": "Armed Forces",
         "icon": "M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z",
-        "color": "#475569",
-        "bg_color": "#f1f5f9",
+        "color": "#1d4ed8",
+        "bg_color": "#dbeafe",
     },
     "1": {
         "label": "Managers",
         "icon": "M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z",
-        "color": "#1e40af",
-        "bg_color": "#dbeafe",
+        "color": "#7c3aed",
+        "bg_color": "#ede9fe",
     },
     "2": {
         "label": "Professionals",
@@ -40,8 +40,8 @@ ISCO_GROUPS = {
     "5": {
         "label": "Service & Sales",
         "icon": "M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z",
-        "color": "#16a34a",
-        "bg_color": "#dcfce7",
+        "color": "#e11d48",
+        "bg_color": "#ffe4e6",
     },
     "6": {
         "label": "Agriculture & Forestry",
@@ -58,14 +58,14 @@ ISCO_GROUPS = {
     "8": {
         "label": "Machine Operators",
         "icon": "M4.5 12a7.5 7.5 0 0015 0m-15 0a7.5 7.5 0 1115 0m-15 0H3m16.5 0H21m-1.5 0H12m-8.457 3.077l1.41-.513m14.095-5.13l1.41-.513M5.106 17.785l1.15-.964m11.49-9.642l1.149-.964M7.501 19.795l.75-1.3m7.5-12.99l.75-1.3m-6.063 16.658l.26-1.477m2.605-14.772l.26-1.477m0 17.726l-.26-1.477M10.698 4.614l-.26-1.477M16.5 19.794l-.75-1.299M7.5 4.205L12 12m6.894 5.785l-1.149-.964M6.256 7.178l-1.15-.964m15.352 8.864l-1.41-.513M4.954 9.435l-1.41-.514M12.002 12l-3.75 6.495",
-        "color": "#64748b",
-        "bg_color": "#f1f5f9",
+        "color": "#0891b2",
+        "bg_color": "#cffafe",
     },
     "9": {
         "label": "Elementary Occupations",
         "icon": "M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zM12 2.25V4.5m5.834.166l-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243l-1.59-1.59",
-        "color": "#78716c",
-        "bg_color": "#f5f5f4",
+        "color": "#db2777",
+        "bg_color": "#fce7f3",
     },
 }
 
@@ -112,8 +112,43 @@ class Skills(BaseModel):
     importance: str
     skill_type: str
     book_count: int = 0  # Total books matched to this skill
+    occupation_count: int = 0  # How many occupations use this skill
+    google_books_total: int | None = (
+        None  # Total Google Books results (popularity signal)
+    )
     books: list[Books] = Field(default_factory=list)
     courses: list[Courses] = Field(default_factory=list)
+
+    @computed_field
+    @property
+    def star_rating(self) -> int:
+        """Compute importance rating (1-5 stars) based on available data.
+
+        Formula:
+        - Base: 2 for essential, 1 for optional
+        - Google Books popularity (not cumulative):
+          - 1000+ books: +2 (highly popular topic)
+          - 100+ books: +1 (established topic)
+        - Occupation breadth:
+          - 20+ occupations: +1 (highly transferable)
+        """
+        rating = 2 if self.importance == "essential" else 1
+
+        # Bonus for topic popularity (Google Books total)
+        if self.google_books_total is not None:
+            if self.google_books_total >= 1000:
+                rating += 2
+            elif self.google_books_total >= 100:
+                rating += 1
+        elif self.book_count >= 1:
+            # Fallback to local book count if no Google data
+            rating += 1
+
+        # Bonus for broad applicability
+        if self.occupation_count >= 20:
+            rating += 1
+
+        return min(rating, 5)
 
 
 class Profession(BaseModel):

@@ -37,7 +37,7 @@ def list_featured_professions(
         FROM occupations o
         WHERE
             o.is_featured = TRUE
-            AND o.status <> 'obsolete'
+            AND (o.status IS NULL OR o.status <> 'obsolete')
             AND (o.is_leaf OR o.is_functional_leaf)
             AND (
                 :q = ''
@@ -216,6 +216,8 @@ def rows_to_profession(
                 skill_type=r.skill_type,
                 description=r.skill_description,
                 book_count=r.skill_book_count or 0,
+                occupation_count=getattr(r, "skill_occupation_count", 0) or 0,
+                google_books_total=getattr(r, "skill_google_books_total", None),
                 books=[],
             )
             seen_books_by_skill[skill_key] = set()
@@ -277,6 +279,13 @@ def search_profession(
                 COUNT(DISTINCT book_id) as book_count
             FROM skill_book_matches
             GROUP BY skill_uri
+        ),
+        skill_occupation_counts AS (
+            SELECT
+                skill_uri,
+                COUNT(DISTINCT occupation_uri) as occupation_count
+            FROM occupation_skills
+            GROUP BY skill_uri
         )
         SELECT
             o.uri                   AS uri,
@@ -303,7 +312,8 @@ def search_profession(
             b.published_year        AS book_published_year,
             sb.rank                 AS book_rank,
             
-            COALESCE(sbc.book_count, 0) AS skill_book_count
+            COALESCE(sbc.book_count, 0) AS skill_book_count,
+            COALESCE(soc.occupation_count, 0) AS skill_occupation_count
 
         FROM occupations o
 
@@ -316,6 +326,9 @@ def search_profession(
         LEFT JOIN skill_book_counts sbc
             ON s.uri = sbc.skill_uri
 
+        LEFT JOIN skill_occupation_counts soc
+            ON s.uri = soc.skill_uri
+
         LEFT JOIN skill_book_matches sb
             ON s.uri = sb.skill_uri
 
@@ -325,7 +338,7 @@ def search_profession(
         WHERE
             (o.preferred_title ILIKE :q OR o.alt_label ILIKE :q)
             AND (o.is_leaf OR o.is_functional_leaf)
-            AND o.status <> 'obsolete'
+            AND (o.status IS NULL OR o.status <> 'obsolete')
             AND o.is_featured = TRUE
 
         ORDER BY
@@ -379,6 +392,13 @@ def get_profession_by_slug(
                 COUNT(DISTINCT book_id) as book_count
             FROM skill_book_matches
             GROUP BY skill_uri
+        ),
+        skill_occupation_counts AS (
+            SELECT
+                skill_uri,
+                COUNT(DISTINCT occupation_uri) as occupation_count
+            FROM occupation_skills
+            GROUP BY skill_uri
         )
         SELECT
             o.uri                   AS uri,
@@ -405,7 +425,9 @@ def get_profession_by_slug(
             b.published_year        AS book_published_year,
             sb.rank                 AS book_rank,
             
-            COALESCE(sbc.book_count, 0) AS skill_book_count
+            COALESCE(sbc.book_count, 0) AS skill_book_count,
+            COALESCE(soc.occupation_count, 0) AS skill_occupation_count,
+            s.google_books_total    AS skill_google_books_total
 
         FROM occupations o
 
@@ -417,6 +439,9 @@ def get_profession_by_slug(
 
         LEFT JOIN skill_book_counts sbc
             ON s.uri = sbc.skill_uri
+
+        LEFT JOIN skill_occupation_counts soc
+            ON s.uri = soc.skill_uri
 
         LEFT JOIN skill_book_matches sb
             ON s.uri = sb.skill_uri
