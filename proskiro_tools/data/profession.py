@@ -363,6 +363,31 @@ def search_profession(
     )
 
 
+def list_all_profession_slugs(db: Session) -> list[str]:
+    """
+    List all profession slugs for sitemap generation.
+
+    Args:
+        db: SQLAlchemy database session
+
+    Returns:
+        List of slug strings for all featured, non-obsolete professions
+    """
+    sql = text("""
+        SELECT slug
+        FROM occupations
+        WHERE
+            is_featured = TRUE
+            AND (status IS NULL OR status <> 'obsolete')
+            AND (is_leaf OR is_functional_leaf)
+            AND slug IS NOT NULL
+        ORDER BY preferred_title;
+    """)
+
+    rows = db.execute(sql).fetchall()
+    return [row.slug for row in rows]
+
+
 def get_profession_by_slug(
     db: Session,
     slug: str,
