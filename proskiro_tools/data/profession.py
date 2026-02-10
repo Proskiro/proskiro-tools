@@ -242,6 +242,7 @@ def rows_to_profession(
                     authors=r.book_authors,
                     published_year=r.book_published_year,
                     rank=r.book_rank,
+                    cover_url=getattr(r, "book_cover_url", None),
                 )
             )
 
@@ -312,6 +313,7 @@ def search_profession(
             b.authors               AS book_authors,
             b.published_year        AS book_published_year,
             sb.rank                 AS book_rank,
+            b.thumbnail             AS book_cover_url,
             
             COALESCE(sbc.book_count, 0) AS skill_book_count,
             COALESCE(soc.occupation_count, 0) AS skill_occupation_count
@@ -453,6 +455,7 @@ def get_profession_by_slug(
             b.authors               AS book_authors,
             b.published_year        AS book_published_year,
             sb.rank                 AS book_rank,
+            b.thumbnail             AS book_cover_url,
             
             COALESCE(sbc.book_count, 0) AS skill_book_count,
             COALESCE(soc.occupation_count, 0) AS skill_occupation_count,

@@ -97,6 +97,7 @@ class Books(BaseModel):
     authors: Optional[list[str]] = None
     published_year: Optional[int] = None
     rank: Optional[int] = None
+    cover_url: Optional[str] = None
 
 
 class Courses(BaseModel):
