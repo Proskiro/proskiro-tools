@@ -276,9 +276,10 @@ def search_profession(
         WITH skill_book_counts AS (
             SELECT 
                 skill_uri,
+                occupation_uri,
                 COUNT(DISTINCT book_id) as book_count
             FROM skill_book_matches
-            GROUP BY skill_uri
+            GROUP BY skill_uri, occupation_uri
         ),
         skill_occupation_counts AS (
             SELECT
@@ -325,12 +326,14 @@ def search_profession(
 
         LEFT JOIN skill_book_counts sbc
             ON s.uri = sbc.skill_uri
+            AND o.uri = sbc.occupation_uri
 
         LEFT JOIN skill_occupation_counts soc
             ON s.uri = soc.skill_uri
 
         LEFT JOIN skill_book_matches sb
             ON s.uri = sb.skill_uri
+            AND o.uri = sb.occupation_uri
 
         LEFT JOIN books b
             ON sb.book_id = b.id
@@ -414,9 +417,10 @@ def get_profession_by_slug(
         WITH skill_book_counts AS (
             SELECT 
                 skill_uri,
+                occupation_uri,
                 COUNT(DISTINCT book_id) as book_count
             FROM skill_book_matches
-            GROUP BY skill_uri
+            GROUP BY skill_uri, occupation_uri
         ),
         skill_occupation_counts AS (
             SELECT
@@ -464,12 +468,14 @@ def get_profession_by_slug(
 
         LEFT JOIN skill_book_counts sbc
             ON s.uri = sbc.skill_uri
+            AND o.uri = sbc.occupation_uri
 
         LEFT JOIN skill_occupation_counts soc
             ON s.uri = soc.skill_uri
 
         LEFT JOIN skill_book_matches sb
             ON s.uri = sb.skill_uri
+            AND o.uri = sb.occupation_uri
 
         LEFT JOIN books b
             ON sb.book_id = b.id
