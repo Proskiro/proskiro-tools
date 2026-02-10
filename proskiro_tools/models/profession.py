@@ -98,6 +98,9 @@ class Books(BaseModel):
     published_year: Optional[int] = None
     rank: Optional[int] = None
     cover_url: Optional[str] = None
+    free_access_url: Optional[str] = None
+    free_access_type: Optional[str] = None  # 'full', 'preview', 'pdf', 'epub', or 'none'
+    amazon_affiliate_url: Optional[str] = None
 
 
 class Courses(BaseModel):

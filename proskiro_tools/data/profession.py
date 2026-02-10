@@ -243,6 +243,9 @@ def rows_to_profession(
                     published_year=r.book_published_year,
                     rank=r.book_rank,
                     cover_url=getattr(r, "book_cover_url", None),
+                    free_access_url=getattr(r, "book_free_access_url", None),
+                    free_access_type=getattr(r, "book_free_access_type", None),
+                    amazon_affiliate_url=getattr(r, "book_amazon_affiliate_url", None),
                 )
             )
 
@@ -314,6 +317,9 @@ def search_profession(
             b.published_year        AS book_published_year,
             sb.rank                 AS book_rank,
             b.thumbnail             AS book_cover_url,
+            b.free_access_url       AS book_free_access_url,
+            b.free_access_type      AS book_free_access_type,
+            b.amazon_affiliate_url  AS book_amazon_affiliate_url,
             
             COALESCE(sbc.book_count, 0) AS skill_book_count,
             COALESCE(soc.occupation_count, 0) AS skill_occupation_count
@@ -456,6 +462,9 @@ def get_profession_by_slug(
             b.published_year        AS book_published_year,
             sb.rank                 AS book_rank,
             b.thumbnail             AS book_cover_url,
+            b.free_access_url       AS book_free_access_url,
+            b.free_access_type      AS book_free_access_type,
+            b.amazon_affiliate_url  AS book_amazon_affiliate_url,
             
             COALESCE(sbc.book_count, 0) AS skill_book_count,
             COALESCE(soc.occupation_count, 0) AS skill_occupation_count,
