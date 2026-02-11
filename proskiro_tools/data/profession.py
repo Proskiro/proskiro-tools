@@ -15,18 +15,38 @@ def list_featured_professions(
     db: Session,
     query: str = "",
     limit: int = 20,
-) -> list[ProfessionSummary]:
+    offset: int = 0,
+) -> tuple[list[ProfessionSummary], int]:
     """
-    List featured professions matching a search query.
+    List featured professions matching a search query with pagination.
 
     Args:
         db: SQLAlchemy database session
         query: Search term to match against profession titles (empty = all featured)
         limit: Maximum number of results to return
+        offset: Number of results to skip (for pagination)
 
     Returns:
-        List of ProfessionSummary objects (basic info only, no skills/books)
+        Tuple of (list of ProfessionSummary objects, total count)
     """
+    # Get total count first
+    count_sql = text("""
+        SELECT COUNT(*)
+        FROM occupations o
+        WHERE
+            o.is_featured = TRUE
+            AND (o.status IS NULL OR o.status <> 'obsolete')
+            AND (o.is_leaf OR o.is_functional_leaf)
+            AND (
+                :q = ''
+                OR o.preferred_title ILIKE :q_pattern
+                OR o.alt_label ILIKE :q_pattern
+            )
+    """)
+    total_count = db.execute(
+        count_sql, {"q": query, "q_pattern": f"%{query}%"}
+    ).scalar()
+
     sql = text("""
         SELECT
             o.uri,
@@ -45,14 +65,15 @@ def list_featured_professions(
                 OR o.alt_label ILIKE :q_pattern
             )
         ORDER BY o.preferred_title
-        LIMIT :limit;
+        LIMIT :limit
+        OFFSET :offset;
     """)
 
     rows = db.execute(
-        sql, {"q": query, "q_pattern": f"%{query}%", "limit": limit}
+        sql, {"q": query, "q_pattern": f"%{query}%", "limit": limit, "offset": offset}
     ).fetchall()
 
-    return [
+    professions = [
         ProfessionSummary(
             uri=row.uri,
             isco_code=row.isco_code,
@@ -62,6 +83,7 @@ def list_featured_professions(
         )
         for row in rows
     ]
+    return professions, total_count
 
 
 def list_diverse_featured_professions(
