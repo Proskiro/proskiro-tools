@@ -380,7 +380,7 @@ def search_profession(
             s.preferred_title,
             sb.rank
 
-        LIMIT 500;
+        LIMIT 8000;
     """)
 
     rows = db.execute(sql, {"q": f"%{profession_name}%"}).fetchall()
@@ -525,7 +525,7 @@ def get_profession_by_slug(
             s.preferred_title,
             sb.rank
 
-        LIMIT 500;
+        LIMIT 8000;
     """)
 
     rows = db.execute(sql, {"slug": slug}).fetchall()
