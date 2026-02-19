@@ -42,9 +42,23 @@ def create_db_engine(database_url: str | None = None, ssl_enabled: bool = True) 
     )
 
 
-# Default engine and session factory
-_engine = create_db_engine()
-SessionLocal = sessionmaker(bind=_engine, autocommit=False, autoflush=False)
+# Lazy-initialized engine and session factory
+_engine = None
+_session_factory = None
+
+
+def _get_engine() -> Engine:
+    global _engine
+    if _engine is None:
+        _engine = create_db_engine()
+    return _engine
+
+
+def SessionLocal() -> Session:
+    global _session_factory
+    if _session_factory is None:
+        _session_factory = sessionmaker(bind=_get_engine(), autocommit=False, autoflush=False)
+    return _session_factory()
 
 
 def get_db() -> Generator[Session, None, None]:
