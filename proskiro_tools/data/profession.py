@@ -264,12 +264,21 @@ def rows_to_profession(
                     authors=r.book_authors,
                     published_year=r.book_published_year,
                     rank=r.book_rank,
+                    score=getattr(r, "book_score", None),
                     cover_url=getattr(r, "book_cover_url", None),
                     free_access_url=getattr(r, "book_free_access_url", None),
                     free_access_type=getattr(r, "book_free_access_type", None),
                     amazon_affiliate_url=getattr(r, "book_amazon_affiliate_url", None),
                 )
             )
+
+    # Limit each skill to top 5 books, sorted by score (highest first)
+    MAX_BOOKS_PER_SKILL = 5
+    for skill_obj in list(essential_by_key.values()) + list(optional_by_key.values()):
+        if len(skill_obj.books) > MAX_BOOKS_PER_SKILL:
+            skill_obj.books = sorted(
+                skill_obj.books, key=lambda b: b.score or 0, reverse=True
+            )[:MAX_BOOKS_PER_SKILL]
 
     profession.essential_skills = list(essential_by_key.values())
     profession.optional_skills = list(optional_by_key.values())
@@ -342,7 +351,8 @@ def search_profession(
             b.free_access_url       AS book_free_access_url,
             b.free_access_type      AS book_free_access_type,
             b.amazon_affiliate_url  AS book_amazon_affiliate_url,
-            
+            sb.score                AS book_score,
+
             COALESCE(sbc.book_count, 0) AS skill_book_count,
             COALESCE(soc.occupation_count, 0) AS skill_occupation_count
 
@@ -378,6 +388,7 @@ def search_profession(
             os.relation_type DESC,      -- essential before optional
             sbc.book_count DESC NULLS LAST,  -- most books first
             s.preferred_title,
+            sb.score DESC NULLS LAST,
             sb.rank
 
         LIMIT 8000;
@@ -487,7 +498,8 @@ def get_profession_by_slug(
             b.free_access_url       AS book_free_access_url,
             b.free_access_type      AS book_free_access_type,
             b.amazon_affiliate_url  AS book_amazon_affiliate_url,
-            
+            sb.score                AS book_score,
+
             COALESCE(sbc.book_count, 0) AS skill_book_count,
             COALESCE(soc.occupation_count, 0) AS skill_occupation_count,
             s.google_books_total    AS skill_google_books_total
@@ -523,6 +535,7 @@ def get_profession_by_slug(
             os.relation_type DESC,
             sbc.book_count DESC NULLS LAST,
             s.preferred_title,
+            sb.score DESC NULLS LAST,
             sb.rank
 
         LIMIT 8000;

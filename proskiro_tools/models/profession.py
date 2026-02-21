@@ -97,6 +97,7 @@ class Books(BaseModel):
     authors: Optional[list[str]] = None
     published_year: Optional[int] = None
     rank: Optional[int] = None
+    score: Optional[float] = None  # Composite ranking score from BookRanker
     cover_url: Optional[str] = None
     free_access_url: Optional[str] = None
     free_access_type: Optional[str] = None  # 'full', 'preview', 'pdf', 'epub', or 'none'
@@ -118,7 +119,7 @@ class Skills(BaseModel):
     book_count: int = 0  # Total books matched to this skill
     occupation_count: int = 0  # How many occupations use this skill
     google_books_total: int | None = (
-        None  # Total Google Books results (popularity signal)
+        None  # Pre-filter book count from search (popularity signal)
     )
     books: list[Books] = Field(default_factory=list)
     courses: list[Courses] = Field(default_factory=list)
@@ -128,24 +129,43 @@ class Skills(BaseModel):
     def star_rating(self) -> int:
         """Compute importance rating (1-5 stars) based on available data.
 
+        Two complementary book signals:
+        - google_books_total: Popularity signal. Count of unique books from
+          tier 0 (primary search only) across Google Books + Open Library,
+          deduped by ISBN, before hard filters. Answers: "is this a
+          well-documented topic?" Fallback results (broader skill, older
+          years) are excluded to preserve the niche vs popular distinction.
+        - book_count: Recommendation quality. Count of final curated books
+          persisted for this skill-occupation pair across ALL tiers (0-4)
+          and both sources. Answers: "did we find good recommendations?"
+          Includes fallback results, so niche skills that needed broader
+          searches still get credit.
+
         Formula:
         - Base: 2 for essential, 1 for optional
-        - Google Books popularity (not cumulative):
-          - 1000+ books: +2 (highly popular topic)
-          - 100+ books: +1 (established topic)
+        - Topic popularity (google_books_total, tier 0 pre-filter only):
+          - 60+ books: +2 (highly popular topic)
+          - 20+ books: +1 (established topic)
+        - Matched recommendations (book_count, all tiers):
+          - 5+ books: +1 (enough to fill top 5 display)
         - Occupation breadth:
           - 20+ occupations: +1 (highly transferable)
+        - Max: 5 stars
         """
         rating = 2 if self.importance == "essential" else 1
 
-        # Bonus for topic popularity (Google Books total)
+        # Bonus for topic popularity (pre-filter book count from both sources)
         if self.google_books_total is not None:
-            if self.google_books_total >= 1000:
+            if self.google_books_total >= 60:
                 rating += 2
-            elif self.google_books_total >= 100:
+            elif self.google_books_total >= 20:
                 rating += 1
         elif self.book_count >= 1:
-            # Fallback to local book count if no Google data
+            # Fallback to local book count if no search data yet
+            rating += 1
+
+        # Bonus for having actual book recommendations matched
+        if self.book_count >= 5:
             rating += 1
 
         # Bonus for broad applicability
