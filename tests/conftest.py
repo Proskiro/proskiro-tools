@@ -14,6 +14,7 @@ ProfessionRow = namedtuple(
         "isco_code",
         "preferred_title",
         "description",
+        "slug",
         "status",
         "is_featured",
         "skill_uri",
@@ -28,7 +29,10 @@ ProfessionRow = namedtuple(
         "book_authors",
         "book_published_year",
         "book_rank",
+        "book_score",
         "skill_book_count",
+        "skill_occupation_count",
+        "skill_google_books_total",
     ],
 )
 
@@ -41,6 +45,7 @@ def mock_profession_rows():
         "isco_code": "2221",
         "preferred_title": "Nurse",
         "description": "A healthcare professional",
+        "slug": "nurse",
         "status": "released",
         "is_featured": True,
     }
@@ -61,7 +66,10 @@ def mock_profession_rows():
             book_authors=["Henry Gray"],
             book_published_year=2020,
             book_rank=1,
+            book_score=85.5,
             skill_book_count=2,
+            skill_occupation_count=15,
+            skill_google_books_total=45,
         ),
         ProfessionRow(
             **base,
@@ -77,7 +85,10 @@ def mock_profession_rows():
             book_authors=["Anne Gilroy"],
             book_published_year=2021,
             book_rank=2,
+            book_score=72.3,
             skill_book_count=2,
+            skill_occupation_count=15,
+            skill_google_books_total=45,
         ),
         # Essential skill/competence (no books)
         ProfessionRow(
@@ -94,7 +105,10 @@ def mock_profession_rows():
             book_authors=None,
             book_published_year=None,
             book_rank=None,
+            book_score=None,
             skill_book_count=0,
+            skill_occupation_count=25,
+            skill_google_books_total=None,
         ),
         # Essential knowledge with 1 book
         ProfessionRow(
@@ -111,7 +125,10 @@ def mock_profession_rows():
             book_authors=["John Doe"],
             book_published_year=2019,
             book_rank=1,
+            book_score=60.0,
             skill_book_count=1,
+            skill_occupation_count=10,
+            skill_google_books_total=70,
         ),
         # Optional knowledge with 3 books
         ProfessionRow(
@@ -128,7 +145,10 @@ def mock_profession_rows():
             book_authors=["Jane Smith"],
             book_published_year=2020,
             book_rank=1,
+            book_score=90.0,
             skill_book_count=3,
+            skill_occupation_count=30,
+            skill_google_books_total=80,
         ),
         ProfessionRow(
             **base,
@@ -144,7 +164,10 @@ def mock_profession_rows():
             book_authors=["Bob Brown"],
             book_published_year=2021,
             book_rank=2,
+            book_score=75.0,
             skill_book_count=3,
+            skill_occupation_count=30,
+            skill_google_books_total=80,
         ),
         ProfessionRow(
             **base,
@@ -160,7 +183,10 @@ def mock_profession_rows():
             book_authors=["Alice Green"],
             book_published_year=2022,
             book_rank=3,
+            book_score=65.0,
             skill_book_count=3,
+            skill_occupation_count=30,
+            skill_google_books_total=80,
         ),
         # Optional skill/competence
         ProfessionRow(
@@ -177,7 +203,10 @@ def mock_profession_rows():
             book_authors=None,
             book_published_year=None,
             book_rank=None,
+            book_score=None,
             skill_book_count=0,
+            skill_occupation_count=50,
+            skill_google_books_total=None,
         ),
     ]
     return rows

@@ -3,7 +3,7 @@
 import pytest
 
 from proskiro_tools.data.profession import rows_to_profession, search_profession
-from proskiro_tools.models.profession import Profession
+from proskiro_tools.models.profession import Books, Profession, Skills
 
 
 class TestRowsToProfession:
@@ -156,6 +156,227 @@ class TestRowsToProfessionLimits:
         assert len(essential_competence) == 1
         assert len(optional_knowledge) == 0
         assert len(optional_competence) == 1
+
+
+class TestStarRating:
+    """Tests for the star_rating computed field on Skills."""
+
+    def _make_skill(self, **overrides) -> Skills:
+        defaults = {
+            "skill_uri": "http://example.com/skill/test",
+            "preferred_title": "Test Skill",
+            "importance": "essential",
+            "skill_type": "knowledge",
+            "book_count": 0,
+            "occupation_count": 0,
+            "google_books_total": None,
+        }
+        defaults.update(overrides)
+        return Skills(**defaults)
+
+    def test_essential_base_is_2(self):
+        skill = self._make_skill(importance="essential")
+        assert skill.star_rating == 2
+
+    def test_optional_base_is_1(self):
+        skill = self._make_skill(importance="optional")
+        assert skill.star_rating == 1
+
+    def test_popular_topic_adds_2(self):
+        skill = self._make_skill(google_books_total=60)
+        assert skill.star_rating == 4  # 2 base + 2 popularity
+
+    def test_established_topic_adds_1(self):
+        skill = self._make_skill(google_books_total=20)
+        assert skill.star_rating == 3  # 2 base + 1 popularity
+
+    def test_below_threshold_no_popularity_bonus(self):
+        skill = self._make_skill(google_books_total=19)
+        assert skill.star_rating == 2  # 2 base only
+
+    def test_fallback_to_book_count_when_no_search_data(self):
+        skill = self._make_skill(google_books_total=None, book_count=1)
+        assert skill.star_rating == 3  # 2 base + 1 fallback
+
+    def test_no_fallback_when_zero_books(self):
+        skill = self._make_skill(google_books_total=None, book_count=0)
+        assert skill.star_rating == 2  # 2 base only
+
+    def test_book_count_5_adds_recommendation_bonus(self):
+        skill = self._make_skill(google_books_total=10, book_count=5)
+        assert skill.star_rating == 3  # 2 base + 0 popularity (10<20) + 1 recommendations
+
+    def test_book_count_below_5_no_recommendation_bonus(self):
+        skill = self._make_skill(google_books_total=10, book_count=4)
+        assert skill.star_rating == 2  # 2 base + 0 popularity (10<20) + 0 recommendations
+
+    def test_occupation_breadth_adds_1(self):
+        skill = self._make_skill(occupation_count=20)
+        assert skill.star_rating == 3  # 2 base + 1 breadth
+
+    def test_max_is_5_stars(self):
+        skill = self._make_skill(
+            importance="essential",
+            google_books_total=100,
+            book_count=10,
+            occupation_count=50,
+        )
+        # 2 base + 2 popularity + 1 recommendations + 1 breadth = 6 → capped at 5
+        assert skill.star_rating == 5
+
+    def test_optional_max_scenario(self):
+        skill = self._make_skill(
+            importance="optional",
+            google_books_total=60,
+            book_count=5,
+            occupation_count=20,
+        )
+        # 1 base + 2 popularity + 1 recommendations + 1 breadth = 5
+        assert skill.star_rating == 5
+
+    def test_optional_minimum(self):
+        skill = self._make_skill(importance="optional")
+        assert skill.star_rating == 1
+
+    def test_popularity_and_book_count_independent(self):
+        """google_books_total and book_count are independent signals."""
+        skill = self._make_skill(google_books_total=60, book_count=5)
+        # 2 base + 2 popularity + 1 recommendations = 5
+        assert skill.star_rating == 5
+
+    def test_no_fallback_when_search_data_exists(self):
+        """book_count fallback should NOT apply when google_books_total is set."""
+        skill = self._make_skill(google_books_total=5, book_count=3)
+        # 2 base + 0 popularity (5 < 20) + 0 recommendations (3 < 5) = 2
+        assert skill.star_rating == 2
+
+
+class TestBookScoreAndLimiting:
+    """Tests for book score persistence and top-5 limiting in rows_to_profession."""
+
+    def test_books_have_score(self, mock_profession_rows):
+        """Books should carry the score from the database row."""
+        result = rows_to_profession(mock_profession_rows)
+
+        anatomy = next(
+            s for s in result.essential_skills if s.preferred_title == "Anatomy"
+        )
+        assert anatomy.books[0].score == 85.5
+        assert anatomy.books[1].score == 72.3
+
+    def test_limits_books_to_5(self):
+        """Skills with >5 books should be trimmed to top 5 by score."""
+        from tests.conftest import ProfessionRow
+
+        base = {
+            "uri": "http://example.com/occupation/dev",
+            "isco_code": "2512",
+            "preferred_title": "Developer",
+            "description": "A software developer",
+            "slug": "developer",
+            "status": "released",
+            "is_featured": True,
+        }
+
+        rows = []
+        for i in range(8):
+            rows.append(
+                ProfessionRow(
+                    **base,
+                    skill_uri="http://example.com/skill/python",
+                    skill_code="SK1",
+                    skill_title="Python",
+                    importance="essential",
+                    skill_type="knowledge",
+                    skill_description="Python programming",
+                    book_id=100 + i,
+                    isbn_10=f"ISBN{i:06d}",
+                    book_title=f"Python Book {i}",
+                    book_authors=[f"Author {i}"],
+                    book_published_year=2020 + i,
+                    book_rank=i + 1,
+                    book_score=float(80 - i * 5),
+                    skill_book_count=8,
+                    skill_occupation_count=10,
+                    skill_google_books_total=50,
+                )
+            )
+
+        result = rows_to_profession(rows)
+        python_skill = result.essential_skills[0]
+        assert len(python_skill.books) == 5
+
+    def test_top_5_are_highest_scored(self):
+        """The 5 retained books should be the ones with highest scores."""
+        from tests.conftest import ProfessionRow
+
+        base = {
+            "uri": "http://example.com/occupation/dev",
+            "isco_code": "2512",
+            "preferred_title": "Developer",
+            "description": "A software developer",
+            "slug": "developer",
+            "status": "released",
+            "is_featured": True,
+        }
+
+        scores = [10.0, 90.0, 30.0, 70.0, 50.0, 80.0, 20.0]
+        rows = []
+        for i, score in enumerate(scores):
+            rows.append(
+                ProfessionRow(
+                    **base,
+                    skill_uri="http://example.com/skill/python",
+                    skill_code="SK1",
+                    skill_title="Python",
+                    importance="essential",
+                    skill_type="knowledge",
+                    skill_description="Python programming",
+                    book_id=200 + i,
+                    isbn_10=f"ISBNX{i:05d}",
+                    book_title=f"Book {i}",
+                    book_authors=[f"Author {i}"],
+                    book_published_year=2020,
+                    book_rank=i + 1,
+                    book_score=score,
+                    skill_book_count=7,
+                    skill_occupation_count=10,
+                    skill_google_books_total=50,
+                )
+            )
+
+        result = rows_to_profession(rows)
+        python_skill = result.essential_skills[0]
+        retained_scores = [b.score for b in python_skill.books]
+        # Top 5 scores from [10, 90, 30, 70, 50, 80, 20] = [90, 80, 70, 50, 30]
+        assert retained_scores == [90.0, 80.0, 70.0, 50.0, 30.0]
+
+    def test_5_or_fewer_books_not_trimmed(self, mock_profession_rows):
+        """Skills with 5 or fewer books should keep all of them."""
+        result = rows_to_profession(mock_profession_rows)
+
+        anatomy = next(
+            s for s in result.essential_skills if s.preferred_title == "Anatomy"
+        )
+        assert len(anatomy.books) == 2  # Only 2 books, no trimming
+
+    def test_skills_have_occupation_count(self, mock_profession_rows):
+        """Skills should carry occupation_count from rows."""
+        result = rows_to_profession(mock_profession_rows)
+
+        anatomy = next(
+            s for s in result.essential_skills if s.preferred_title == "Anatomy"
+        )
+        assert anatomy.occupation_count == 15
+
+    def test_skills_have_google_books_total(self, mock_profession_rows):
+        """Skills should carry google_books_total from rows."""
+        result = rows_to_profession(mock_profession_rows)
+
+        anatomy = next(
+            s for s in result.essential_skills if s.preferred_title == "Anatomy"
+        )
+        assert anatomy.google_books_total == 45
 
 
 class TestSearchProfessionIntegration:
