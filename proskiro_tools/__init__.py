@@ -12,6 +12,7 @@ from proskiro_tools.data import (
     list_all_profession_slugs,
     list_diverse_featured_professions,
     list_featured_professions,
+    list_related_professions,
     search_profession,
 )
 from proskiro_tools.db import SessionLocal, get_db
@@ -41,6 +42,7 @@ __all__ = [
     "list_all_profession_slugs",
     "list_diverse_featured_professions",
     "list_featured_professions",
+    "list_related_professions",
     "search_profession",
     "get_profession_by_slug",
 ]

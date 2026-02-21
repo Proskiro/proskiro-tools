@@ -3,6 +3,7 @@ from proskiro_tools.data.profession import (
     list_all_profession_slugs,
     list_diverse_featured_professions,
     list_featured_professions,
+    list_related_professions,
     rows_to_profession,
     search_profession,
 )
@@ -12,6 +13,7 @@ __all__ = [
     "list_all_profession_slugs",
     "list_diverse_featured_professions",
     "list_featured_professions",
+    "list_related_professions",
     "rows_to_profession",
     "search_profession",
 ]

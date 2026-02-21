@@ -1,6 +1,8 @@
+import logging
 from collections import OrderedDict
 
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from proskiro_tools.models.profession import (
@@ -9,6 +11,8 @@ from proskiro_tools.models.profession import (
     ProfessionSummary,
     Skills,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def list_featured_professions(
@@ -43,47 +47,51 @@ def list_featured_professions(
                 OR o.alt_label ILIKE :q_pattern
             )
     """)
-    total_count = db.execute(
-        count_sql, {"q": query, "q_pattern": f"%{query}%"}
-    ).scalar()
+    try:
+        total_count = db.execute(
+            count_sql, {"q": query, "q_pattern": f"%{query}%"}
+        ).scalar()
 
-    sql = text("""
-        SELECT
-            o.uri,
-            o.isco_code,
-            o.preferred_title,
-            o.description,
-            o.slug
-        FROM occupations o
-        WHERE
-            o.is_featured = TRUE
-            AND (o.status IS NULL OR o.status <> 'obsolete')
-            AND (o.is_leaf OR o.is_functional_leaf)
-            AND (
-                :q = ''
-                OR o.preferred_title ILIKE :q_pattern
-                OR o.alt_label ILIKE :q_pattern
+        sql = text("""
+            SELECT
+                o.uri,
+                o.isco_code,
+                o.preferred_title,
+                o.description,
+                o.slug
+            FROM occupations o
+            WHERE
+                o.is_featured = TRUE
+                AND (o.status IS NULL OR o.status <> 'obsolete')
+                AND (o.is_leaf OR o.is_functional_leaf)
+                AND (
+                    :q = ''
+                    OR o.preferred_title ILIKE :q_pattern
+                    OR o.alt_label ILIKE :q_pattern
+                )
+            ORDER BY o.preferred_title
+            LIMIT :limit
+            OFFSET :offset;
+        """)
+
+        rows = db.execute(
+            sql, {"q": query, "q_pattern": f"%{query}%", "limit": limit, "offset": offset}
+        ).fetchall()
+
+        professions = [
+            ProfessionSummary(
+                uri=row.uri,
+                isco_code=row.isco_code,
+                preferred_title=row.preferred_title,
+                description=row.description,
+                slug=row.slug,
             )
-        ORDER BY o.preferred_title
-        LIMIT :limit
-        OFFSET :offset;
-    """)
-
-    rows = db.execute(
-        sql, {"q": query, "q_pattern": f"%{query}%", "limit": limit, "offset": offset}
-    ).fetchall()
-
-    professions = [
-        ProfessionSummary(
-            uri=row.uri,
-            isco_code=row.isco_code,
-            preferred_title=row.preferred_title,
-            description=row.description,
-            slug=row.slug,
-        )
-        for row in rows
-    ]
-    return professions, total_count
+            for row in rows
+        ]
+        return professions, total_count
+    except SQLAlchemyError:
+        logger.exception("Database error in list_featured_professions (query=%r)", query)
+        return [], 0
 
 
 def list_diverse_featured_professions(
@@ -137,18 +145,22 @@ def list_diverse_featured_professions(
         LIMIT :limit;
     """)
 
-    rows = db.execute(sql, {"limit": limit}).fetchall()
+    try:
+        rows = db.execute(sql, {"limit": limit}).fetchall()
 
-    return [
-        ProfessionSummary(
-            uri=row.uri,
-            isco_code=row.isco_code,
-            preferred_title=row.preferred_title,
-            description=row.description,
-            slug=row.slug,
-        )
-        for row in rows
-    ]
+        return [
+            ProfessionSummary(
+                uri=row.uri,
+                isco_code=row.isco_code,
+                preferred_title=row.preferred_title,
+                description=row.description,
+                slug=row.slug,
+            )
+            for row in rows
+        ]
+    except SQLAlchemyError:
+        logger.exception("Database error in list_diverse_featured_professions")
+        return []
 
 
 def rows_to_profession(
@@ -400,7 +412,12 @@ def search_profession(
         LIMIT 8000;
     """)
 
-    rows = db.execute(sql, {"q": f"%{profession_name}%"}).fetchall()
+    try:
+        rows = db.execute(sql, {"q": f"%{profession_name}%"}).fetchall()
+    except SQLAlchemyError:
+        logger.exception("Database error in search_profession (name=%r)", profession_name)
+        return None
+
     if not rows:
         return None
 
@@ -434,8 +451,93 @@ def list_all_profession_slugs(db: Session) -> list[str]:
         ORDER BY preferred_title;
     """)
 
-    rows = db.execute(sql).fetchall()
-    return [row.slug for row in rows]
+    try:
+        rows = db.execute(sql).fetchall()
+        return [row.slug for row in rows]
+    except SQLAlchemyError:
+        logger.exception("Database error in list_all_profession_slugs")
+        return []
+
+
+def list_related_professions(
+    db: Session,
+    isco_code: str,
+    exclude_slug: str,
+    limit: int = 6,
+) -> list[ProfessionSummary]:
+    """
+    List related professions in the same ISCO group, prioritising closer matches.
+
+    Priority order:
+      1. Same unit group  (first 5 chars, e.g. C2153)
+      2. Same minor group (first 4 chars, e.g. C215)
+      3. Same sub-major group (first 3 chars, e.g. C21)
+
+    Args:
+        db: SQLAlchemy database session
+        isco_code: ISCO code of the current profession (e.g. "C2153.1")
+        exclude_slug: Slug of the current profession to exclude from results
+        limit: Maximum number of results (default 6)
+
+    Returns:
+        List of ProfessionSummary objects for related professions
+    """
+    if not isco_code or len(isco_code) < 3:
+        return []
+
+    # Extract hierarchy levels from the dot-delimited code.
+    # E.g. "C2153.1.6" → parent "C2153.1", base "C2153"
+    dot_pos = isco_code.rfind(".")
+    parent_prefix = isco_code[:dot_pos] if dot_pos > 0 else isco_code
+    base_code = isco_code.split(".")[0]  # e.g. "C2153"
+
+    sql = text("""
+        SELECT
+            o.uri,
+            o.isco_code,
+            o.preferred_title,
+            o.description,
+            o.slug,
+            CASE
+                WHEN o.isco_code LIKE :parent_pattern THEN 1
+                WHEN SPLIT_PART(o.isco_code, '.', 1) = :base_code THEN 2
+            END AS priority
+        FROM occupations o
+        WHERE
+            o.is_featured = TRUE
+            AND (o.status IS NULL OR o.status <> 'obsolete')
+            AND (o.is_leaf OR o.is_functional_leaf)
+            AND o.slug <> :exclude_slug
+            AND SPLIT_PART(o.isco_code, '.', 1) = :base_code
+        ORDER BY priority, RANDOM()
+        LIMIT :limit;
+    """)
+
+    try:
+        rows = db.execute(
+            sql,
+            {
+                "isco_code": isco_code,
+                "parent_pattern": parent_prefix + ".%",
+                "base_code": base_code,
+                "exclude_slug": exclude_slug,
+                "limit": limit,
+            },
+        ).fetchall()
+
+        return [
+            ProfessionSummary(
+                uri=row.uri,
+                isco_code=row.isco_code,
+                preferred_title=row.preferred_title,
+                description=row.description,
+                slug=row.slug,
+            )
+            for row in rows
+        ]
+    except SQLAlchemyError:
+        logger.exception("Database error in list_related_professions (isco=%r)", isco_code)
+        return []
 
 
 def get_profession_by_slug(
@@ -547,7 +649,12 @@ def get_profession_by_slug(
         LIMIT 8000;
     """)
 
-    rows = db.execute(sql, {"slug": slug}).fetchall()
+    try:
+        rows = db.execute(sql, {"slug": slug}).fetchall()
+    except SQLAlchemyError:
+        logger.exception("Database error in get_profession_by_slug (slug=%r)", slug)
+        return None
+
     if not rows:
         return None
 

@@ -38,7 +38,15 @@ def create_db_engine(database_url: str | None = None, ssl_enabled: bool = True) 
     return create_engine(
         url,
         pool_pre_ping=True,
-        connect_args=connect_args,
+        pool_size=10,
+        max_overflow=20,
+        pool_recycle=1800,
+        pool_timeout=30,
+        connect_args={
+            **connect_args,
+            "connect_timeout": 10,
+            "options": "-c statement_timeout=30000",
+        },
     )
 
 
