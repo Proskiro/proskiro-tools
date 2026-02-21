@@ -144,19 +144,19 @@ class Skills(BaseModel):
         Formula:
         - Base: 2 for essential, 1 for optional
         - Topic popularity (google_books_total, tier 0 pre-filter only):
-          - 60+ books: +2 (highly popular topic)
+          - 40+ books: +2 (highly popular topic)
           - 20+ books: +1 (established topic)
         - Matched recommendations (book_count, all tiers):
           - 5+ books: +1 (enough to fill top 5 display)
         - Occupation breadth:
-          - 20+ occupations: +1 (highly transferable)
+          - 10+ occupations: +1 (transferable skill)
         - Max: 5 stars
         """
         rating = 2 if self.importance == "essential" else 1
 
         # Bonus for topic popularity (pre-filter book count from both sources)
         if self.google_books_total is not None:
-            if self.google_books_total >= 60:
+            if self.google_books_total >= 40:
                 rating += 2
             elif self.google_books_total >= 20:
                 rating += 1
@@ -169,7 +169,7 @@ class Skills(BaseModel):
             rating += 1
 
         # Bonus for broad applicability
-        if self.occupation_count >= 20:
+        if self.occupation_count >= 10:
             rating += 1
 
         return min(rating, 5)

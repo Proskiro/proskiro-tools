@@ -207,6 +207,12 @@ def rows_to_profession(
         if not skill_key:
             continue
 
+        # Skip bare language skills (e.g. "Arabic", "Hebrew") — they just name
+        # a language without specifying proficiency level, so they're unactionable.
+        # "language skill" types (e.g. "use maritime English") are kept.
+        if r.skill_type == "language":
+            continue
+
         is_essential = r.importance == "essential"
         target_dict = essential_by_key if is_essential else optional_by_key
 

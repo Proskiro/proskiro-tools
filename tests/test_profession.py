@@ -183,12 +183,16 @@ class TestStarRating:
         assert skill.star_rating == 1
 
     def test_popular_topic_adds_2(self):
-        skill = self._make_skill(google_books_total=60)
+        skill = self._make_skill(google_books_total=40)
         assert skill.star_rating == 4  # 2 base + 2 popularity
 
     def test_established_topic_adds_1(self):
         skill = self._make_skill(google_books_total=20)
         assert skill.star_rating == 3  # 2 base + 1 popularity
+
+    def test_established_but_not_popular(self):
+        skill = self._make_skill(google_books_total=39)
+        assert skill.star_rating == 3  # 2 base + 1 popularity (39 >= 20 but < 40)
 
     def test_below_threshold_no_popularity_bonus(self):
         skill = self._make_skill(google_books_total=19)
@@ -211,8 +215,12 @@ class TestStarRating:
         assert skill.star_rating == 2  # 2 base + 0 popularity (10<20) + 0 recommendations
 
     def test_occupation_breadth_adds_1(self):
-        skill = self._make_skill(occupation_count=20)
+        skill = self._make_skill(occupation_count=10)
         assert skill.star_rating == 3  # 2 base + 1 breadth
+
+    def test_occupation_breadth_below_threshold(self):
+        skill = self._make_skill(occupation_count=9)
+        assert skill.star_rating == 2  # 2 base only
 
     def test_max_is_5_stars(self):
         skill = self._make_skill(
@@ -227,9 +235,9 @@ class TestStarRating:
     def test_optional_max_scenario(self):
         skill = self._make_skill(
             importance="optional",
-            google_books_total=60,
+            google_books_total=40,
             book_count=5,
-            occupation_count=20,
+            occupation_count=10,
         )
         # 1 base + 2 popularity + 1 recommendations + 1 breadth = 5
         assert skill.star_rating == 5
@@ -240,7 +248,7 @@ class TestStarRating:
 
     def test_popularity_and_book_count_independent(self):
         """google_books_total and book_count are independent signals."""
-        skill = self._make_skill(google_books_total=60, book_count=5)
+        skill = self._make_skill(google_books_total=40, book_count=5)
         # 2 base + 2 popularity + 1 recommendations = 5
         assert skill.star_rating == 5
 
