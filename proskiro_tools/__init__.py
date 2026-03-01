@@ -9,6 +9,7 @@ This package provides:
 
 from proskiro_tools.data import (
     get_profession_by_slug,
+    get_slug_by_uri,
     list_all_profession_slugs,
     list_diverse_featured_professions,
     list_featured_professions,
@@ -39,10 +40,11 @@ __all__ = [
     "get_db",
     "SessionLocal",
     # Data access
+    "get_profession_by_slug",
+    "get_slug_by_uri",
     "list_all_profession_slugs",
     "list_diverse_featured_professions",
     "list_featured_professions",
     "list_related_professions",
     "search_profession",
-    "get_profession_by_slug",
 ]

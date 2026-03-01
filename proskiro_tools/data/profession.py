@@ -459,6 +459,32 @@ def list_all_profession_slugs(db: Session) -> list[str]:
         return []
 
 
+def get_slug_by_uri(db: Session, uri: str) -> str | None:
+    """
+    Look up a profession's URL slug from its ESCO URI.
+
+    Args:
+        db: SQLAlchemy database session
+        uri: ESCO occupation URI (e.g. 'http://data.europa.eu/esco/occupation/...')
+
+    Returns:
+        Profession slug string, or None if not found
+    """
+    sql = text("""
+        SELECT slug
+        FROM occupations
+        WHERE uri = :uri
+        LIMIT 1;
+    """)
+
+    try:
+        row = db.execute(sql, {"uri": uri}).fetchone()
+        return row.slug if row else None
+    except SQLAlchemyError:
+        logger.exception("Database error in get_slug_by_uri (uri=%r)", uri)
+        return None
+
+
 def list_related_professions(
     db: Session,
     isco_code: str,
