@@ -1,6 +1,6 @@
 [project]
 name = "proskiro_tools"
-version = "0.2.0"
+version = "0.2.1"
 description = "Shared core package for Proskiro - models, database, and data access layer"
 readme = "README.md"
 requires-python = ">=3.11"
