@@ -45,6 +45,7 @@ def list_featured_professions(
                 :q = ''
                 OR o.preferred_title ILIKE :q_pattern
                 OR o.alt_label ILIKE :q_pattern
+                OR o.onet_alt_titles ILIKE :q_pattern
             )
     """)
     try:
@@ -68,6 +69,7 @@ def list_featured_professions(
                     :q = ''
                     OR o.preferred_title ILIKE :q_pattern
                     OR o.alt_label ILIKE :q_pattern
+                    OR o.onet_alt_titles ILIKE :q_pattern
                 )
             ORDER BY o.preferred_title
             LIMIT :limit
@@ -397,7 +399,7 @@ def search_profession(
             ON sb.book_id = b.id
 
         WHERE
-            (o.preferred_title ILIKE :q OR o.alt_label ILIKE :q)
+            (o.preferred_title ILIKE :q OR o.alt_label ILIKE :q OR o.onet_alt_titles ILIKE :q)
             AND (o.is_leaf OR o.is_functional_leaf)
             AND (o.status IS NULL OR o.status <> 'obsolete')
             AND o.is_featured = TRUE
