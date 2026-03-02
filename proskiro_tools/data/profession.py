@@ -39,6 +39,7 @@ def list_featured_professions(
         FROM occupations o
         WHERE
             o.is_featured = TRUE
+            AND (o.is_blocked IS NOT TRUE)
             AND (o.status IS NULL OR o.status <> 'obsolete')
             AND (o.is_leaf OR o.is_functional_leaf)
             AND (
@@ -63,6 +64,7 @@ def list_featured_professions(
             FROM occupations o
             WHERE
                 o.is_featured = TRUE
+                AND (o.is_blocked IS NOT TRUE)
                 AND (o.status IS NULL OR o.status <> 'obsolete')
                 AND (o.is_leaf OR o.is_functional_leaf)
                 AND (
@@ -127,6 +129,7 @@ def list_diverse_featured_professions(
             FROM occupations o
             WHERE
                 o.is_featured = TRUE
+                AND (o.is_blocked IS NOT TRUE)
                 AND (o.is_leaf OR o.is_functional_leaf)
                 AND o.isco_code IS NOT NULL
         ),
@@ -403,6 +406,7 @@ def search_profession(
             AND (o.is_leaf OR o.is_functional_leaf)
             AND (o.status IS NULL OR o.status <> 'obsolete')
             AND o.is_featured = TRUE
+            AND (o.is_blocked IS NOT TRUE)
 
         ORDER BY
             os.relation_type DESC,      -- essential before optional
@@ -447,6 +451,7 @@ def list_all_profession_slugs(db: Session) -> list[str]:
         FROM occupations
         WHERE
             is_featured = TRUE
+            AND (is_blocked IS NOT TRUE)
             AND (status IS NULL OR status <> 'obsolete')
             AND (is_leaf OR is_functional_leaf)
             AND slug IS NOT NULL
@@ -533,6 +538,7 @@ def list_related_professions(
         FROM occupations o
         WHERE
             o.is_featured = TRUE
+            AND (o.is_blocked IS NOT TRUE)
             AND (o.status IS NULL OR o.status <> 'obsolete')
             AND (o.is_leaf OR o.is_functional_leaf)
             AND o.slug <> :exclude_slug
@@ -666,6 +672,7 @@ def get_profession_by_slug(
             o.slug = :slug
             AND (o.is_leaf OR o.is_functional_leaf)
             AND o.is_featured = TRUE
+            AND (o.is_blocked IS NOT TRUE)
 
         ORDER BY
             os.relation_type DESC,
@@ -724,6 +731,7 @@ def list_professions_by_isco_prefix(
         FROM occupations o
         WHERE
             o.is_featured = TRUE
+            AND (o.is_blocked IS NOT TRUE)
             AND (o.status IS NULL OR o.status <> 'obsolete')
             AND (o.is_leaf OR o.is_functional_leaf)
             AND SUBSTRING(o.isco_code FROM 2) LIKE :prefix
@@ -742,6 +750,7 @@ def list_professions_by_isco_prefix(
             FROM occupations o
             WHERE
                 o.is_featured = TRUE
+                AND (o.is_blocked IS NOT TRUE)
                 AND (o.status IS NULL OR o.status <> 'obsolete')
                 AND (o.is_leaf OR o.is_functional_leaf)
                 AND SUBSTRING(o.isco_code FROM 2) LIKE :prefix
@@ -789,6 +798,7 @@ def count_professions_by_isco_group(
         FROM occupations o
         WHERE
             o.is_featured = TRUE
+            AND (o.is_blocked IS NOT TRUE)
             AND (o.status IS NULL OR o.status <> 'obsolete')
             AND (o.is_leaf OR o.is_functional_leaf)
             AND o.isco_code IS NOT NULL
@@ -828,6 +838,7 @@ def count_professions_by_isco_subgroup(
         FROM occupations o
         WHERE
             o.is_featured = TRUE
+            AND (o.is_blocked IS NOT TRUE)
             AND (o.status IS NULL OR o.status <> 'obsolete')
             AND (o.is_leaf OR o.is_functional_leaf)
             AND SUBSTRING(o.isco_code FROM 2) LIKE :prefix
