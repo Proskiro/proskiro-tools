@@ -691,3 +691,153 @@ def get_profession_by_slug(
         max_optional_knowledge=max_optional_knowledge,
         max_optional_skills=max_optional_skills,
     )
+
+
+def list_professions_by_isco_prefix(
+    db: Session,
+    isco_prefix: str,
+    limit: int = 200,
+    offset: int = 0,
+) -> tuple[list[ProfessionSummary], int]:
+    """
+    List featured professions whose ISCO code starts with a given prefix.
+
+    Works for both major groups (1-digit, e.g. "2") and sub-major groups
+    (2-digit, e.g. "25"). The prefix is matched against the normalised
+    ISCO code (with leading 'C' stripped).
+
+    Args:
+        db: SQLAlchemy database session
+        isco_prefix: 1 or 2 digit ISCO code prefix
+        limit: Maximum results
+        offset: Pagination offset
+
+    Returns:
+        Tuple of (list of ProfessionSummary, total count)
+    """
+    like_pattern = f"{isco_prefix}%"
+
+    count_sql = text("""
+        SELECT COUNT(*)
+        FROM occupations o
+        WHERE
+            o.is_featured = TRUE
+            AND (o.status IS NULL OR o.status <> 'obsolete')
+            AND (o.is_leaf OR o.is_functional_leaf)
+            AND SUBSTRING(o.isco_code FROM 2) LIKE :prefix
+    """)
+
+    try:
+        total_count = db.execute(count_sql, {"prefix": like_pattern}).scalar()
+
+        sql = text("""
+            SELECT
+                o.uri,
+                o.isco_code,
+                o.preferred_title,
+                o.description,
+                o.slug
+            FROM occupations o
+            WHERE
+                o.is_featured = TRUE
+                AND (o.status IS NULL OR o.status <> 'obsolete')
+                AND (o.is_leaf OR o.is_functional_leaf)
+                AND SUBSTRING(o.isco_code FROM 2) LIKE :prefix
+            ORDER BY o.preferred_title
+            LIMIT :limit
+            OFFSET :offset;
+        """)
+
+        rows = db.execute(
+            sql, {"prefix": like_pattern, "limit": limit, "offset": offset}
+        ).fetchall()
+
+        professions = [
+            ProfessionSummary(
+                uri=row.uri,
+                isco_code=row.isco_code,
+                preferred_title=row.preferred_title,
+                description=row.description,
+                slug=row.slug,
+            )
+            for row in rows
+        ]
+        return professions, total_count
+    except SQLAlchemyError:
+        logger.exception(
+            "Database error in list_professions_by_isco_prefix (prefix=%r)", isco_prefix
+        )
+        return [], 0
+
+
+def count_professions_by_isco_group(
+    db: Session,
+) -> dict[str, int]:
+    """
+    Count featured professions per ISCO major group (1-digit).
+
+    Returns:
+        Dict mapping 1-digit ISCO code to count of featured professions.
+        E.g. {"1": 42, "2": 156, ...}
+    """
+    sql = text("""
+        SELECT
+            SUBSTRING(o.isco_code FROM 2 FOR 1) AS group_code,
+            COUNT(*) AS cnt
+        FROM occupations o
+        WHERE
+            o.is_featured = TRUE
+            AND (o.status IS NULL OR o.status <> 'obsolete')
+            AND (o.is_leaf OR o.is_functional_leaf)
+            AND o.isco_code IS NOT NULL
+        GROUP BY SUBSTRING(o.isco_code FROM 2 FOR 1)
+        ORDER BY group_code;
+    """)
+
+    try:
+        rows = db.execute(sql).fetchall()
+        return {row.group_code: row.cnt for row in rows}
+    except SQLAlchemyError:
+        logger.exception("Database error in count_professions_by_isco_group")
+        return {}
+
+
+def count_professions_by_isco_subgroup(
+    db: Session,
+    group_code: str,
+) -> dict[str, int]:
+    """
+    Count featured professions per ISCO sub-major group (2-digit)
+    within a given major group.
+
+    Args:
+        db: SQLAlchemy database session
+        group_code: 1-digit major group code (e.g. "2")
+
+    Returns:
+        Dict mapping 2-digit ISCO code to count.
+        E.g. {"21": 30, "22": 45, "23": 28, ...}
+    """
+    like_pattern = f"{group_code}%"
+    sql = text("""
+        SELECT
+            SUBSTRING(o.isco_code FROM 2 FOR 2) AS subgroup_code,
+            COUNT(*) AS cnt
+        FROM occupations o
+        WHERE
+            o.is_featured = TRUE
+            AND (o.status IS NULL OR o.status <> 'obsolete')
+            AND (o.is_leaf OR o.is_functional_leaf)
+            AND SUBSTRING(o.isco_code FROM 2) LIKE :prefix
+        GROUP BY SUBSTRING(o.isco_code FROM 2 FOR 2)
+        ORDER BY subgroup_code;
+    """)
+
+    try:
+        rows = db.execute(sql, {"prefix": like_pattern}).fetchall()
+        return {row.subgroup_code: row.cnt for row in rows}
+    except SQLAlchemyError:
+        logger.exception(
+            "Database error in count_professions_by_isco_subgroup (group=%r)", group_code
+        )
+        return {}
