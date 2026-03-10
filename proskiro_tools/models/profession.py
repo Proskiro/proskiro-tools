@@ -600,6 +600,8 @@ class Profession(BaseModel):
     preferred_title: str
     description: Optional[str] = None
     slug: str
+    alt_label: Optional[str] = None
+    onet_alt_titles: Optional[str] = None
     essential_skills: list[Skills] = Field(default_factory=list)
     optional_skills: list[Skills] = Field(default_factory=list)
     is_featured: Optional[bool] = None
