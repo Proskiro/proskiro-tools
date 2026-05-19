@@ -1,72 +1,68 @@
-# Proskiro Tools
+# proskiro-tools
 
-Shared core package for Proskiro applications. This package provides common models, database configuration, and data access layer used by both the FastAPI (`skills-api`) and Django (`django-admin`) projects.
+Shared Python library used by both the Django web app and the FastAPI service. Centralises the data models, database connection, and data access layer so business logic isn't duplicated across two separate applications.
+
+## What it does
+
+- **Pydantic v2 models** — validated response shapes for occupations, skills, and books, including embedded ISCO-08 major group metadata (labels, slugs, icons, colours) used for rendering career category pages
+- **SQLAlchemy 2.0 database layer** — connection factory with SSL, connection pooling, statement timeouts, and a `get_db` FastAPI dependency
+- **Data access functions** — parameterised SQL queries for profession search (with full-text matching across preferred title, alt labels, and O*NET alternate titles), pagination, and result aggregation
+
+## Technical highlights
+
+- **Monorepo-friendly packaging** — installed as an editable local dependency (`pip install -e ../proskiro-tools`) in development and as a git dependency in production, so both apps always share the same version
+- **Separation of concerns** — models, DB connection, and queries are each in their own layer; the FastAPI and Django apps import only what they need
+- **Connection resilience** — SQLAlchemy engine configured with `pool_pre_ping`, `pool_recycle`, `pool_size`/`max_overflow`, and a `connect_timeout` to handle RDS cold starts and idle connection drops
+- **Tested** — unit tests cover model construction, skill deduplication across multi-row query results, and essential/optional skill classification
 
 ## Structure
 
 ```
 proskiro_tools/
-├── models/          # Pydantic models
-│   ├── profession.py    # Profession, Skills, Books, Courses
-│   └── skills.py        # Skill model
-├── db/              # Database connection
-│   └── connection.py    # SQLAlchemy engine, session factory
-└── data/            # Data access layer
-    └── profession.py    # Profession queries
+├── models/
+│   ├── profession.py   Profession, ProfessionSummary, Skills, Books + ISCO-08 group data
+│   └── skills.py       Skill model
+├── db/
+│   └── connection.py   SQLAlchemy engine, session factory, get_db dependency
+└── data/
+    └── profession.py   list_featured_professions, search_profession, rows_to_profession
 ```
+
+## Stack
+
+| | |
+|---|---|
+| Models | Pydantic v2 |
+| ORM / DB | SQLAlchemy 2.0 + psycopg2 |
+| Database | PostgreSQL on AWS RDS (SSL verify-full) |
+| Packaging | setuptools, uv |
+| Tests | pytest |
 
 ## Installation
 
-### For development (editable install)
-
-In `skills-api` or `django-admin`:
-
 ```bash
-# Using uv (recommended)
-uv sync
-
-# Or using pip
+# Development (editable)
 pip install -e ../proskiro-tools
+
+# Production (git dependency in pyproject.toml)
+# "proskiro_tools @ git+https://github.com/Proskiro/proskiro-tools.git"
 ```
 
-### For production
+## Environment variables
 
-```toml
-# pyproject.toml
-dependencies = [
-  "proskiro_tools @ git+https://github.com/your-org/proskiro-tools.git",
-]
+```env
+POSTGRES_USER=
+POSTGRES_PASSWORD=
+POSTGRES_HOST=
+POSTGRES_PORT=5432
+POSTGRES_DB=
+SSL_ROOTCERT=/path/to/ca-certificate.crt
 ```
 
-## Usage
-
-```python
-# Import models
-from proskiro_tools import Profession, Skills, Books
-
-# Import database utilities
-from proskiro_tools.db import get_db, SessionLocal
-
-# Import data access functions
-from proskiro_tools.data import search_profession
-```
-
-## Environment Variables
-
-The database connection requires these environment variables:
+## Development
 
 ```bash
-POSTGRES_USER=your_db_user
-POSTGRES_PASSWORD=your_db_password
-POSTGRES_HOST=your_db_host
-POSTGRES_PORT=5432
-POSTGRES_DB=your_db_name
-SSL_ROOTCERT=/path/to/ca-certificate.crt  # Optional
+uv venv && source .venv/bin/activate
+uv sync
+pytest
 ```
-
-## Architecture
-
-This package implements **Pattern B** from hybrid Django/FastAPI architecture:
-- Two separate applications (Django + FastAPI)
-- Shared core package for business logic and data access
-- Both apps connect to the same PostgreSQL database
