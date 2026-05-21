@@ -468,6 +468,42 @@ def list_all_profession_slugs(db: Session) -> list[str]:
         return []
 
 
+def list_all_profession_slug_isco_pairs(
+    db: Session,
+) -> list[tuple[str, str | None]]:
+    """
+    Return (slug, isco_code) for every live, featured, non-obsolete profession.
+
+    Uses the same WHERE clause as list_all_profession_slugs so the two are
+    always in sync. The isco_code is needed by callers that want to build
+    ISCO-prioritised prompt slug lists without fetching full Profession objects.
+
+    Args:
+        db: SQLAlchemy database session
+
+    Returns:
+        List of (slug, isco_code) tuples ordered by preferred_title.
+    """
+    sql = text("""
+        SELECT slug, isco_code
+        FROM occupations
+        WHERE
+            is_featured = TRUE
+            AND (is_blocked IS NOT TRUE)
+            AND (status IS NULL OR status <> 'obsolete')
+            AND (is_leaf OR is_functional_leaf)
+            AND slug IS NOT NULL
+        ORDER BY preferred_title;
+    """)
+
+    try:
+        rows = db.execute(sql).fetchall()
+        return [(row.slug, row.isco_code) for row in rows]
+    except SQLAlchemyError:
+        logger.exception("Database error in list_all_profession_slug_isco_pairs")
+        return []
+
+
 def get_slug_by_uri(db: Session, uri: str) -> str | None:
     """
     Look up a profession's URL slug from its ESCO URI.
