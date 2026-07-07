@@ -533,6 +533,7 @@ class Skills(BaseModel):
     skill_code: Optional[str] = None
     preferred_title: str
     description: Optional[str] = None
+    email_why: Optional[str] = None
     importance: str
     skill_type: str
     book_count: int = 0  # Total books matched to this skill
@@ -599,6 +600,7 @@ class Profession(BaseModel):
     isco_code: Optional[str] = None
     preferred_title: str
     description: Optional[str] = None
+    email_description: Optional[str] = None
     slug: str
     alt_label: Optional[str] = None
     onet_alt_titles: Optional[str] = None
